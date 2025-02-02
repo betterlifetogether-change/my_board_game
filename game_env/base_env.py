@@ -1,20 +1,24 @@
-
+from copy import deepcopy
 
 class BaseEnv:
     def __init__(self):
         self.init_state = 0
         self.state = 0
         self.done = False
+        self.actions = set()
 
     def step(self, action):
-        s1 = self.state
+        s1 = self.get_cur_state()
         s2 = self.get_next_state(action)
-        reward = self.get_reward(s1, action, s2)
+        reward = self.get_reward(s1["state"], action, s2["state"])
         done = self.is_game_over()
-        return s1, reward, s2, done
+        return s2, reward, done
+
+    def get_cur_state(self):
+        return {"state": deepcopy(self.state)}
 
     def get_next_state(self, action):
-        return self.state
+        return {"state": deepcopy(self.state)}
 
     def get_reward(self, s1, a, s2):
         return 0
@@ -24,3 +28,14 @@ class BaseEnv:
 
     def restart(self):
         self.state = self.init_state
+
+
+class VirtualBaseEnv(BaseEnv):
+    def __init__(self):
+        super().__init__()
+
+    def roll_back(self, action):
+        return
+
+    def get_virtual_reward(self, s1, a, s2):
+        return 0
