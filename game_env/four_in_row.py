@@ -38,6 +38,426 @@ class FourInRowEnv(BaseEnv):
         return {"state": self.state, "cur_player": self.cur_player}
 
     def get_reward(self, s1, a, s2):
+        # TODO:    横
+        a=b=c=h=0
+        for x in range(5):
+            y = 0
+            z = 0
+            while y < 5:
+                var1 = self.state[x, y, z]
+                if var1 == 1:
+                    a = a + 1
+                    if a > b:
+                        b = a
+                elif var1 == 2:
+                    c = c + 1
+                    if c > h:
+                        h = c
+                elif var1 == 0:
+                    a = 0
+                    c = 0
+                if b >= 4:
+                    print(f"黑棋胜利")
+                    # 游戏结束
+                if h >= 4:
+                    print(f"白棋胜利")
+                    # 游戏结束
+                y = y + 1
+        # TODO:    竖
+        a=b=c=h=0
+        for y in range(5):
+            x = 0
+            z = 0
+            while x < 5:
+                var2 = self.state[x, y, z]
+                if var2 == 1:
+                    a=a+1
+                    if a > b:
+                        b=a
+                elif var2 == 2:
+                    c=c+1
+                    if c > h:
+                        h=c
+                elif var2 == 0:
+                    a=0
+                    c=0
+                if b >= 4:
+                    print(f"黑棋胜利")
+                    #游戏结束
+                if h >= 4:
+                    print(f"白棋胜利")
+                    #游戏结束
+                x = x + 1
+        # TODO:    TV对角1 俯视
+        a = b = c = h = 0
+        for x in range(5):
+            z = 0
+            while z < 5:
+                i = 0
+                while i < 10:
+                    y = x + i - 5
+                    if y < 0 or y >= 5:
+                        continue
+                    var3 = self.state[x, y, z]
+                    if var3 == 1:
+                        a = a + 1
+                        if a > b:
+                            b = a
+                    elif var3 == 2:
+                        c = c + 1
+                        if c > h:
+                            h = c
+                    elif var3 == 0:
+                        a = 0
+                        c = 0
+                    if b >= 4:
+                        print(f"黑棋胜利")
+                        # 游戏结束
+                    if h >= 4:
+                        print(f"白棋胜利")
+                        # 游戏结束
+                    i = i + 1
+                z = z + 1
+        # TODO:    TV对角2 俯视
+        a = b = c = h = 0
+        for x in range(5):
+            z = 0
+            while z < 5:
+                i = 0
+                while i < 10:
+                    y = -x + i
+                    if y < 0 or y >= 5:
+                        continue
+                    var4 = self.state[x, y, z]
+                    if var4 == 1:
+                        a = a + 1
+                        if a > b:
+                            b = a
+                    elif var4 == 2:
+                        c = c + 1
+                        if c > h:
+                            h = c
+                    elif var4 == 0:
+                        a = 0
+                        c = 0
+                    if b >= 4:
+                        print(f"黑棋胜利")
+                        # 游戏结束
+                    if h >= 4:
+                        print(f"白棋胜利")
+                        # 游戏结束
+                    i = i + 1
+                z = z + 1
+        # TODO:    FV对角1 主视X
+        a = b = c = h = 0
+        for x in range(5):
+            y = 0
+            while y < 5:
+                i = 0
+                while i < 10:
+                    z = x + i - 5
+                    if z < 0 or z >= 5:
+                        continue
+                    var3 = self.state[x, y, z]
+                    if var3 == 1:
+                        a = a + 1
+                        if a > b:
+                            b = a
+                    elif var3 == 2:
+                        c = c + 1
+                        if c > h:
+                            h = c
+                    elif var3 == 0:
+                        a = 0
+                        c = 0
+                    if b >= 4:
+                        print(f"黑棋胜利")
+                        # 游戏结束
+                    if h >= 4:
+                        print(f"白棋胜利")
+                        # 游戏结束
+                    i = i + 1
+                y = y + 1
+        # TODO:    FV对角2 主视X
+        a = b = c = h = 0
+        for x in range(5):
+            y = 0
+            while y < 5:
+                i = 0
+                while i < 10:
+                    z = -x + i
+                    if z < 0 or z >= 5:
+                        continue
+                    var4 = self.state[x, y, z]
+                    if var4 == 1:
+                        a = a + 1
+                        if a > b:
+                            b = a
+                    elif var4 == 2:
+                        c = c + 1
+                        if c > h:
+                            h = c
+                    elif var4 == 0:
+                        a = 0
+                        c = 0
+                    if b >= 4:
+                        print(f"黑棋胜利")
+                        # 游戏结束
+                    if h >= 4:
+                        print(f"白棋胜利")
+                        # 游戏结束
+                    i = i + 1
+                y = y + 1
+        # TODO:    SV对角1 侧视Y
+        a = b = c = h = 0
+        for z in range(5):
+            x = 0
+            while x < 5:
+                i = 0
+                while i < 10:
+                    y = z + i - 5
+                    if y < 0 or y >= 5:
+                        continue
+                    var3 = self.state[x, y, z]
+                    if var3 == 1:
+                        a = a + 1
+                        if a > b:
+                            b = a
+                    elif var3 == 2:
+                        c = c + 1
+                        if c > h:
+                            h = c
+                    elif var3 == 0:
+                        a = 0
+                        c = 0
+                    if b >= 4:
+                        print(f"黑棋胜利")
+                        # 游戏结束
+                    if h >= 4:
+                        print(f"白棋胜利")
+                        # 游戏结束
+                    i = i + 1
+                x = x + 1
+        # TODO:    SV对角2 侧视Y
+        a = b = c = h = 0
+        for z in range(5):
+            x = 0
+            while x < 5:
+                i = 0
+                while i < 10:
+                    y = -z + i
+                    if y < 0 or y >= 5:
+                        continue
+                    var4 = self.state[x, y, z]
+                    if var4 == 1:
+                        a = a + 1
+                        if a > b:
+                            b = a
+                    elif var4 == 2:
+                        c = c + 1
+                        if c > h:
+                            h = c
+                    elif var4 == 0:
+                        a = 0
+                        c = 0
+                    if b >= 4:
+                        print(f"黑棋胜利")
+                        # 游戏结束
+                    if h >= 4:
+                        print(f"白棋胜利")
+                        # 游戏结束
+                    i = i + 1
+                x = x + 1
+        # TODO:    高
+        a = b = c = h = 0
+        x = 0
+        y = 0
+        for z in range(5):
+            while x < 5 and y < 5:
+                var5 = self.state[x, y, z]
+                if var5 == 1:
+                    a = a + 1
+                    if a > b:
+                        b = a
+                elif var5 == 2:
+                    c = c + 1
+                    if c > h:
+                        h = c
+                elif var5 == 0:
+                    a = 0
+                    c = 0
+                if b >= 4:
+                    print(f"黑棋胜利")
+                    # 游戏结束
+                if h >= 4:
+                    print(f"白棋胜利")
+                    # 游戏结束
+                x = x + 1
+                y = y + 1
+        # TODO:     空间斜1
+        a = b = c = h = 0
+        i = 0
+        while i < 5:
+            j = 0
+            while j < 5:
+                k = 0
+                while k < 5:
+                    q = 0
+                    while q < 5:
+                        x = i + q
+                        y = j + q
+                        z = k + q
+                        if x < 0 or x >= 5:
+                            continue
+                        if y < 0 or y >= 5:
+                            continue
+                        if z < 0 or z >= 5:
+                            continue
+                        var6 = self.state[x, y, z]
+                        if var6 == 1:
+                            a = a + 1
+                            if a > b:
+                                b = a
+                        elif var6 == 2:
+                            c = c + 1
+                            if c > h:
+                                h = c
+                        elif var6 == 0:
+                            a = 0
+                            c = 0
+                        if b >= 4:
+                            print(f"黑棋胜利")
+                            # 游戏结束
+                        if h >= 4:
+                            print(f"白棋胜利")
+                            # 游戏结束
+                        q = q + 1
+                    k = k + 1
+                j = j + 1
+            i = i + 1
+        # TODO:     空间斜2
+        a = b = c = h = 0
+        i = 0
+        while i < 5:
+            j = 0
+            while j < 5:
+                k = 0
+                while k < 5:
+                    q = 0
+                    while q < 5:
+                        x = i - q
+                        y = j - q
+                        z = k + q
+                        if x < 0 or x >= 5:
+                            continue
+                        if y < 0 or y >= 5:
+                            continue
+                        if z < 0 or z >= 5:
+                            continue
+                        var6 = self.state[x, y, z]
+                        if var6 == 1:
+                            a = a + 1
+                            if a > b:
+                                b = a
+                        elif var6 == 2:
+                            c = c + 1
+                            if c > h:
+                                h = c
+                        elif var6 == 0:
+                            a = 0
+                            c = 0
+                        if b >= 4:
+                            print(f"黑棋胜利")
+                            # 游戏结束
+                        if h >= 4:
+                            print(f"白棋胜利")
+                            # 游戏结束
+                        q = q + 1
+                    k = k + 1
+                j = j + 1
+            i = i + 1
+        # TODO:     空间斜3
+        a = b = c = h = 0
+        i = 0
+        while i < 5:
+            j = 0
+            while j < 5:
+                k = 0
+                while k < 5:
+                    q = 0
+                    while q < 5:
+                        x = i - q
+                        y = j + q
+                        z = k + q
+                        if x < 0 or x >= 5:
+                            continue
+                        if y < 0 or y >= 5:
+                            continue
+                        if z < 0 or z >= 5:
+                            continue
+                        var6 = self.state[x, y, z]
+                        if var6 == 1:
+                            a = a + 1
+                            if a > b:
+                                b = a
+                        elif var6 == 2:
+                            c = c + 1
+                            if c > h:
+                                h = c
+                        elif var6 == 0:
+                            a = 0
+                            c = 0
+                        if b >= 4:
+                            print(f"黑棋胜利")
+                            # 游戏结束
+                        if h >= 4:
+                            print(f"白棋胜利")
+                            # 游戏结束
+                        q = q + 1
+                    k = k + 1
+                j = j + 1
+            i = i + 1
+        # TODO:     空间斜4
+        a = b = c = h = 0
+        i = 0
+        while i < 5:
+            j = 0
+            while j < 5:
+                k = 0
+                while k < 5:
+                    q = 0
+                    while q < 5:
+                        x = i + q
+                        y = j - q
+                        z = k + q
+                        if x < 0 or x >= 5:
+                            continue
+                        if y < 0 or y >= 5:
+                            continue
+                        if z < 0 or z >= 5:
+                            continue
+                        var6 = self.state[x, y, z]
+                        if var6 == 1:
+                            a = a + 1
+                            if a > b:
+                                b = a
+                        elif var6 == 2:
+                            c = c + 1
+                            if c > h:
+                                h = c
+                        elif var6 == 0:
+                            a = 0
+                            c = 0
+                        if b >= 4:
+                            print(f"黑棋胜利")
+                            # 游戏结束
+                        if h >= 4:
+                            print(f"白棋胜利")
+                            # 游戏结束
+                        q = q + 1
+                    k = k + 1
+                j = j + 1
+            i = i + 1
         # TODO: 奖励函数, 在棋盘状态s1下落子a, 转移到s2下获得的奖励值
         # 一般定义为: 大于0时黑方优势, 小于0时白方优势
         return 0
