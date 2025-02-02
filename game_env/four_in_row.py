@@ -103,28 +103,44 @@ class FourInRowEnv(BaseEnv):
         r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], cur_z])
         if self.game_over: return r
         # (x,z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_z + t < self.len_y]
+        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,-z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_z - t < self.len_y]
+        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z-t for t in ts]])
         if self.game_over: return r
         # (y,z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_y + t < self.len_x and 0 <= cur_z + t < self.len_y]
+        r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (y,-z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_y + t < self.len_x and 0 <= cur_z - t < self.len_y]
+        r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         # (x,y,z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
+        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,y,-z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
+        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         # (x,-y,z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z + t < self.len_z]
+        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,-y,-z)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z - t < self.len_z]
+        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
 
 
