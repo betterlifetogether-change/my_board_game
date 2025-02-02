@@ -92,13 +92,15 @@ class FourInRowEnv(BaseEnv):
         r = self.get_reward_one_row(self.state[cur_x, cur_y, :])
         if self.game_over: return r
         # (x,y)方向
-        ts = [t for t in range(-4, 5)
+        ts = [t for t in range(-3, 4)
               if 0 <= cur_x+t < self.len_x and 0 <= cur_y+t < self.len_y]
         r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], cur_z])
         if self.game_over: return r
         # TODO: 以下代码未完成
         # (x,-y)方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        ts = [t for t in range(-3, 4)
+              if 0 <= cur_x+t < self.len_x and 0 <= cur_y-t < self.len_y]
+        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], cur_z])
         if self.game_over: return r
         # (x,z)方向
         r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
@@ -587,7 +589,8 @@ def test_play():
         action = input(f"第{i}步{'黑' if game.cur_player == 1 else '白'}方下:")
         game.step(int(action))
         game.display()
-
+        if game.game_over:
+            print("游戏结束")
 
 if __name__ == '__main__':
     test_play()
