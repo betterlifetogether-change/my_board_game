@@ -5,7 +5,7 @@ class FourInRowEnv(BaseEnv):
     def __init__(self):
         super().__init__()
         self.len_x, self.len_y, self.len_z = 5, 5, 5
-        self.state_shape = [self.len_x, self.len_y, self.len_z]
+        self.state_shape = [1, self.len_x, self.len_y, self.len_z]
         self.actions = set([i for i in range(self.len_x * self.len_y)])  # 所有可能动作的集合
         self.num_actions = self.len_x * self.len_y
         # 使用5*5*5矩阵表示棋盘状态, 0表示空, 1表示黑子, 2表示白子
@@ -24,7 +24,7 @@ class FourInRowEnv(BaseEnv):
         x = action % self.len_x
         y = action // self.len_y
         z = 0
-        while self.state[x, y, z] > 0 and z < self.len_z:
+        while z < self.len_z and self.state[x, y, z] > 0:
             z += 1
         if z < self.len_z:
             # 在限定高度内才能正常落子
@@ -96,7 +96,6 @@ class FourInRowEnv(BaseEnv):
               if 0 <= cur_x+t < self.len_x and 0 <= cur_y+t < self.len_y]
         r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], cur_z])
         if self.game_over: return r
-        # TODO: 以下代码未完成
         # (x,-y)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x+t < self.len_x and 0 <= cur_y-t < self.len_y]
@@ -145,12 +144,12 @@ class FourInRowEnv(BaseEnv):
         return 0
 
     def is_game_over(self):
-        # TODO: 根据self.state判断是否游戏结束
-        return False
+        return self.game_over
 
     def restart(self):
         self.state = np.copy(self.init_state)
         self.cur_player = 1
+        self.game_over = False
         return {"state": self.state, "cur_player": self.cur_player}
 
     def display(self):

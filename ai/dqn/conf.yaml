@@ -6,9 +6,9 @@ env:
 
 # 训练参数
 train:
-  num_episode: 10
+  num_episode: 100000
   max_episode_step: 100
-  test_per_episode: 2
+  test_per_episode: 1000
   selfplay_update_per_episode: 100
 
   buffer_size: 5000
@@ -20,9 +20,10 @@ train:
 
 # 模型网络参数
 net:
-  out_channels: 32
-  kernel_size: 3
-  stride: 1
-  padding: 1
+  out_channels: [16, 16]
+  kernel_sizes: [4, 5]
+  strides: [1, 1]
+  paddings: [2, 0]
+  use_bn: false
   dropout_p: 0.1
-  fc_hidden_dims: [256, 128]
+  fc_hidden_dims: [1024, 512, 128]
