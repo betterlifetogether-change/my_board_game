@@ -57,7 +57,7 @@ class FourInRowEnv(BaseEnv):
                 cur_len2 += 1
                 if cur_len2 > max_len2:
                     max_len2 = cur_len2
-            else:
+            elif s ==0 and max_len1 < 4 or s == 0 and max_len2 < 4:
                 cur_len1 = 0
                 cur_len2 = 0
         return max_len1, max_len2
