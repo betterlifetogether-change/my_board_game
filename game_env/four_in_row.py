@@ -57,7 +57,7 @@ class FourInRowEnv(BaseEnv):
                 cur_len2 += 1
                 if cur_len2 > max_len2:
                     max_len2 = cur_len2
-            elif s ==0 and max_len1 < 4 or s == 0 and max_len2 < 4:
+            elif s ==0:
                 cur_len1 = 0
                 cur_len2 = 0
         return max_len1, max_len2
@@ -104,22 +104,22 @@ class FourInRowEnv(BaseEnv):
         if self.game_over: return r
         # (x,z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= cur_x + t < self.len_x and 0 <= cur_z + t < self.len_y]
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_z + t < self.len_z]
         r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,-z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= cur_x + t < self.len_x and 0 <= cur_z - t < self.len_y]
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_z - t < self.len_z]
         r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z-t for t in ts]])
         if self.game_over: return r
         # (y,z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= cur_y + t < self.len_x and 0 <= cur_z + t < self.len_y]
+              if 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
         r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (y,-z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= cur_y + t < self.len_x and 0 <= cur_z - t < self.len_y]
+              if 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
         r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         # (x,y,z)方向
@@ -207,10 +207,10 @@ def test_play():
         if game.game_over:
             print("游戏结束")
 
-#def test_play2():
+def test_play2():
     game = FourInRowEnv()
-    actions = [0, 1, 1, 3, 2, 2, 2, 3, 4, 3, 4, 4 ,3]
-    for i in range(100):
+    actions = [18, 12, 12, 6, 6, 0, 6, 0, 0, 1, 0]
+    for i in range(11):
         action = actions[i]
         game.step(int(action))
         game.display()
@@ -218,4 +218,8 @@ def test_play():
             print("游戏结束")
 
 if __name__ == '__main__':
-     test_play()
+    # test_play2()
+    game = FourInRowEnv()
+    game.state=np.array([[[5*y+x for z in range(5)] for y in range(5)] for x in range(5)])
+    game.get_reward(None,0,None)
+    # game.get_max_len(np.array([1,0,1,1,1]))
