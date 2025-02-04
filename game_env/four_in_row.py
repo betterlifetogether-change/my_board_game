@@ -17,6 +17,9 @@ class FourInRowEnv(BaseEnv):
         self.cur_height = 0  # 当前落子的高度
         self.game_over = False  # 是否游戏结束
 
+    def get_cur_state(self):
+        return {"state": np.copy(self.state), "cur_player": self.cur_player}
+
     def get_next_state(self, action: int):
         # 输入下棋的位置action, 输出下棋后的棋盘状态
         assert action in self.actions
@@ -44,7 +47,7 @@ class FourInRowEnv(BaseEnv):
             self.cur_player = 2
         else:
             self.cur_player = 1
-        return {"state": self.state, "cur_player": self.cur_player}
+        return {"state": np.copy(self.state), "cur_player": self.cur_player}
 
     def get_max_len(self, sub_state: np.ndarray):
         cur_len1 = max_len1 = cur_len2 = max_len2 = 0
@@ -150,7 +153,7 @@ class FourInRowEnv(BaseEnv):
         self.state = np.copy(self.init_state)
         self.cur_player = 1
         self.game_over = False
-        return {"state": self.state, "cur_player": self.cur_player}
+        return {"state": np.copy(self.state), "cur_player": self.cur_player}
 
     def display(self):
         # 打印当前棋盘状态

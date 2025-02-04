@@ -6,6 +6,7 @@ import random
 import time
 from copy import deepcopy
 from ai.base_agent import BaseAgent
+from game_env.base_env import BaseEnv
 
 
 class DQN3D(nn.Module):
@@ -114,6 +115,7 @@ class ReplayBuffer(object):
 class DQNAgent(BaseAgent):
     def __init__(self, state_shape, num_actions, params):
         super().__init__()
+        self.training = False
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
         self.q_net = DQN3D(state_shape, num_actions, params, device)
@@ -131,10 +133,12 @@ class DQNAgent(BaseAgent):
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=params["train.lr"])
 
     def set_train_mode(self):
+        self.training = True
         self.q_net.train()
         self.tar_q_net.train()
 
     def set_eval_mode(self):
+        self.training = False
         self.q_net.eval()
         self.tar_q_net.eval()
 
@@ -158,11 +162,11 @@ class DQNAgent(BaseAgent):
             state = -state
         return state
 
-    def get_action(self, s, training=False):
-        if not training and random.random() < self.params["epsilon"]:
+    def get_action(self, s):
+        if not self.training and random.random() < self.params["train.epsilon"]:
             a = random.choice(range(self.num_actions))
         else:
-            s = self.feature_fn(s, reverse=True)
+            s = self.feature_fn(s, reverse=False)
             with torch.no_grad():
                 q_value = self.q_net(s)
             a = torch.argmax(q_value).cpu().item()
@@ -170,9 +174,10 @@ class DQNAgent(BaseAgent):
 
     def learn(self, s1, a, r, s2, done):
         self.training_steps += 1
-        s2["cur_player"] = s1["cur_player"]
-        s1 = self.feature_fn(s1, reverse=True)
-        s2 = self.feature_fn(s2, reverse=True)
+        # if s1["cur_player"] == 2:
+        #     r = -r
+        s1 = self.feature_fn(s1, reverse=False)
+        s2 = self.feature_fn(s2, reverse=False)
         self.replay_buffer.add_data(s1, a, s2, r, done)
         if self.training_steps < self.replay_buffer.maxsize:
             # 数据未满时不训练
@@ -211,32 +216,84 @@ def start_train(params):
     print(f"## Build env({env}) Success.")
 
     agent = DQNAgent(env.state_shape, env.num_actions, params)
-    agent.set_train_mode()
+    oppo_agent = deepcopy(agent)
+    oppo_agent.set_eval_mode()  # 对手模型不训练
+    start_time = time.time()
     for episode in range(params["train.num_episode"]):
-        start_time = time.time()
         s1 = env.restart()
         loss_dict = {}
         episode_steps = 0
         episode_reward = 0
+        episode_actions = []
+        agent.set_train_mode()
         for t in range(params["train.max_episode_step"]):
+            # one step 定义为己方和对手依次采取动作
             episode_steps += 1
-            a = agent.get_action(s1, True)
-            s2, r, done = env.step(a)
-            episode_reward += r
-            loss_dict = agent.learn(s1, a, r, s2, done)
+
+            a = agent.get_action(s1)
+            episode_actions.append(a)
+            s1_mid, r_mid, done_mid = env.step(a)
+
+            a_oppo = oppo_agent.get_action(s1_mid)
+            if not done_mid:
+                episode_actions.append(a_oppo)
+            s2, r, done = env.step(a_oppo)
+
+            # 定义整体reward为两步reward相加
+            r_all = r_mid + r
+            episode_reward += r_all
+            loss_dict = agent.learn(s1, a, r_all, s2, done)
+            s1 = s2
             if done:
                 break
         if episode % params["train.test_per_episode"] == 0:
             # TODO: 和基线AI对比
+            # test_info = start_test(agent, oppo_agent, deepcopy(env), params)
             pass
         if episode % params["train.selfplay_update_per_episode"] == 0:
-            # TODO: 自博弈模型更新
-            pass
+            # TODO: 自博弈模型更新策略
+            # 先无脑更新对手模型
+            oppo_agent = deepcopy(agent)
+            oppo_agent.set_eval_mode()
+
         if episode % 1000 == 0:
-            print(f"Episode: {episode}, steps: {episode_steps}, reward: {episode_reward}, time: {time.time()-start_time}s")
+            end_time = time.time()
+            print(f"Episode: {episode}, steps: {episode_steps}, reward: {episode_reward}, time: {end_time-start_time}s")
+            print(f"actions: {episode_actions}")
+            start_time = end_time
             for k, v in loss_dict.items():
                 print(f"{k}: {v}", end=", ")
             print()
+
+
+def start_test(agent1: BaseAgent, agent2: BaseAgent, env: BaseEnv, params):
+    for episode in range(params["test.num_episode"]):
+        s1 = env.restart()
+        episode_steps = 0
+        episode_reward = 0
+        episode_actions = []
+        agent1.set_eval_mode()
+        agent2.set_eval_mode()
+        for t in range(params["test.max_episode_step"]):
+            episode_steps += 1
+
+            a1 = agent1.get_action(s1)
+            episode_actions.append(a1)
+            s1_mid, r_mid, done_mid = env.step(a1)
+
+            a2 = agent2.get_action(s1_mid)
+            if not done_mid:
+                episode_actions.append(a2)
+            s2, r, done = env.step(a2)
+
+            # 定义整体reward为两步reward相加
+            r_all = r_mid + r
+            episode_reward += r_all
+
+            s1 = s2
+            if done:
+                break
+    return {}
 
 if __name__ == '__main__':
     import os

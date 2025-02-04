@@ -9,6 +9,8 @@ class BaseEnv:
 
     def step(self, action):
         s1 = self.get_cur_state()
+        if self.is_game_over():
+            return s1, 0, True
         s2 = self.get_next_state(action)
         reward = self.get_reward(s1["state"], action, s2["state"])
         done = self.is_game_over()
