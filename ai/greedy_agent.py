@@ -9,7 +9,7 @@ class GreedyAgent(BaseAgent):
         super().__init__()
         self.v_env = v_env
 
-    def get_action(self, s1):
+    def get_action(self, s1, training=False):
         max_reward = -np.inf
         best_action = None
         for a in self.v_env.actions:
