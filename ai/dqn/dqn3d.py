@@ -248,10 +248,16 @@ def start_train(params):
             # test_info = start_test(agent, oppo_agent, deepcopy(env), params)
             pass
         if episode % params["train.selfplay_update_per_episode"] == 0:
+            print(f"trained episodes: {episode}, start test")
             # TODO: 自博弈模型更新策略
             # 先无脑更新对手模型
-            oppo_agent = deepcopy(agent)
-            oppo_agent.set_eval_mode()
+            test_info = start_test(agent, oppo_agent, deepcopy(env), params)
+            if test_info["win_rate1"] > 0.9:
+                oppo_agent = deepcopy(agent)
+                oppo_agent.set_eval_mode()
+            for k, v in test_info.items():
+                print(f"{k}: {v}", end=", ")
+            print()
 
         if episode % 100 == 0:
             end_time = time.time()
@@ -264,33 +270,35 @@ def start_train(params):
 
 
 def start_test(agent1: BaseAgent, agent2: BaseAgent, env: BaseEnv, params):
+    agent1.set_eval_mode()
+    agent2.set_eval_mode()
+    start = time.time()
+    l_episode_steps = []
+    l_episode_reward = []
     for episode in range(params["test.num_episode"]):
         s1 = env.restart()
         episode_steps = 0
         episode_reward = 0
         episode_actions = []
-        agent1.set_eval_mode()
-        agent2.set_eval_mode()
         for t in range(params["test.max_episode_step"]):
             episode_steps += 1
-
-            a1 = agent1.get_action(s1)
-            episode_actions.append(a1)
-            s1_mid, r_mid, done_mid = env.step(a1)
-
-            a2 = agent2.get_action(s1_mid)
-            if not done_mid:
-                episode_actions.append(a2)
-            s2, r, done = env.step(a2)
-
-            # 定义整体reward为两步reward相加
-            r_all = r_mid + r
-            episode_reward += r_all
-
+            if s1["cur_player"] == 1:
+                a = agent1.get_action(s1)
+            else:
+                a = agent2.get_action(s1)
+            episode_actions.append(a)
+            s2, r, done = env.step(a)
+            episode_reward += r
             s1 = s2
             if done:
                 break
-    return {}
+        l_episode_steps.append(episode_steps)
+        l_episode_reward.append(episode_reward)
+    avg_episode_steps = np.mean(l_episode_steps)
+    avg_episode_rewards = np.mean(l_episode_reward)
+    win_rate1 = np.mean(np.where(np.greater(l_episode_reward, 0), 1.0, 0.0))
+    win_rate2 = np.mean(np.where(np.less(l_episode_reward, 0), 1.0, 0.0))
+    return {"steps": avg_episode_steps, "win_rate1": win_rate1, "win_rate2": win_rate2, "time": time.time()-start}
 
 if __name__ == '__main__':
     import os

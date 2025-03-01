@@ -6,8 +6,8 @@ env:
 
 # 测试参数
 test:
-  num_episode: 1
-  max_episode_step: 50
+  num_episode: 100
+  max_episode_step: 125
 
 
 # 训练参数
