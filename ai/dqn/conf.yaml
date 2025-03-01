@@ -13,7 +13,7 @@ test:
 # 训练参数
 train:
   num_episode: 100000
-  max_episode_step: 50
+  max_episode_step: 125
   test_per_episode: 1000
   selfplay_update_per_episode: 1000
 
@@ -26,10 +26,10 @@ train:
 
 # 模型网络参数
 net:
-  out_channels: [64, 64]
+  out_channels: [128, 2]
   kernel_sizes: [4, 2]
   strides: [1, 1]
   paddings: [0, 1]
-  use_bn: false
-  dropout_p: 0.1
+  use_bn: true
+  dropout_p: 0.0
   fc_hidden_dims: [1024, 512, 128]

@@ -6,7 +6,7 @@ class FourInRowEnv(BaseEnv):
     def __init__(self):
         super().__init__()
         self.len_x, self.len_y, self.len_z = 5, 5, 5
-        self.state_shape = [1, self.len_x, self.len_y, self.len_z]
+        self.state_shape = [self.len_x, self.len_y, self.len_z]
         self.actions = set([i for i in range(self.len_x * self.len_y)])  # 所有可能动作的集合
         self.num_actions = self.len_x * self.len_y
         # 使用5*5*5矩阵表示棋盘状态, 0表示空, 1表示黑子, 2表示白子
@@ -19,7 +19,10 @@ class FourInRowEnv(BaseEnv):
         self.game_over = False  # 是否游戏结束
 
     def get_cur_state(self):
-        return {"state": np.copy(self.state), "cur_player": self.cur_player}
+        chess = np.where(np.greater(self.state, 0), 1, 0)
+        forbidden_state = np.greater_equal(np.sum(chess, 2), self.len_z)
+        forbidden_actions = np.reshape(np.transpose(forbidden_state), [self.len_x * self.len_y])
+        return {"state": np.copy(self.state), "cur_player": self.cur_player, "forbidden_actions": forbidden_actions}
 
     def get_next_state(self, action: int):
         # 输入下棋的位置action, 输出下棋后的棋盘状态
@@ -48,7 +51,7 @@ class FourInRowEnv(BaseEnv):
             self.cur_player = 2
         else:
             self.cur_player = 1
-        return {"state": np.copy(self.state), "cur_player": self.cur_player}
+        return self.get_cur_state()
 
     def get_max_len(self, sub_state: np.ndarray):
         cur_len1 = max_len1 = cur_len2 = max_len2 = 0
@@ -87,63 +90,63 @@ class FourInRowEnv(BaseEnv):
         cur_z = self.cur_height
         # 只需要针对当前坐标延伸的13个方向判定即可
         # x方向
-        r = self.get_reward_one_row(self.state[:, cur_y, cur_z])
+        r = self.get_reward_one_row(s2[:, cur_y, cur_z])
         if self.game_over: return r
         # y方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        r = self.get_reward_one_row(s2[cur_x, :, cur_z])
         if self.game_over: return r
         # z方向
-        r = self.get_reward_one_row(self.state[cur_x, cur_y, :])
+        r = self.get_reward_one_row(s2[cur_x, cur_y, :])
         if self.game_over: return r
         # (x,y)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x+t < self.len_x and 0 <= cur_y+t < self.len_y]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], cur_z])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y+t for t in ts], cur_z])
         if self.game_over: return r
         # (x,-y)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x+t < self.len_x and 0 <= cur_y-t < self.len_y]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], cur_z])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y-t for t in ts], cur_z])
         if self.game_over: return r
         # (x,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], cur_y, [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], cur_y, [cur_z-t for t in ts]])
         if self.game_over: return r
         # (y,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[cur_x, [cur_y+t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (y,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[cur_x, [cur_y+t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         # (x,y,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,y,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         # (x,-y,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,-y,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         return 0
 
@@ -154,7 +157,7 @@ class FourInRowEnv(BaseEnv):
         self.state = np.copy(self.init_state)
         self.cur_player = 1
         self.game_over = False
-        return {"state": np.copy(self.state), "cur_player": self.cur_player}
+        return self.get_cur_state()
 
     def display(self):
         # 打印当前棋盘状态

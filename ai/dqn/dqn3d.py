@@ -27,7 +27,7 @@ class DQN3D(nn.Module):
 
         self.conv_layers = []
         self.bn_layers = []
-        in_channels = 1
+        in_channels = state_shape[0]
         for i in range(len(out_channels)):
             conv = nn.Conv3d(in_channels=in_channels,
                              out_channels=out_channels[i],
@@ -58,10 +58,12 @@ class DQN3D(nn.Module):
 
     def forward(self, x):
         # 3D 卷积层
+        # TODO: 可以考虑跳跃连接
         for i in range(len(self.conv_layers)):
             x = self.conv_layers[i](x)
             if self.use_bn:
                 x = self.bn_layers[i](x)
+            x = F.relu(x)
 
         # 展平
         x = x.view(x.size(0), -1)
@@ -113,11 +115,14 @@ class ReplayBuffer(object):
 
 
 class DQNAgent(BaseAgent):
-    def __init__(self, state_shape, num_actions, params):
+    def __init__(self, env_state_shape, num_actions, params):
         super().__init__()
         self.training = False
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
+
+        # 特征工程: 将原始环境图像转为4通道
+        state_shape = [4, ] + env_state_shape
         self.q_net = DQN3D(state_shape, num_actions, params, device)
         self.tar_q_net = deepcopy(self.q_net)
         assert params.get("train.buffer_size") is not None
@@ -142,7 +147,7 @@ class DQNAgent(BaseAgent):
         self.q_net.eval()
         self.tar_q_net.eval()
 
-    def feature_fn(self, s, reverse=False):
+    def feature_fn(self, s):
         state = s["state"]
         if isinstance(state, np.ndarray):
             state = torch.tensor(state, dtype=torch.float32)
@@ -151,34 +156,36 @@ class DQNAgent(BaseAgent):
             state = state.unsqueeze(0).unsqueeze(1)
         elif state.dim() == 4:
             state = state.unsqueeze(1)
-        # 标准化, 白:-1,空:0, 黑:1
-        replaced_state = torch.where(state == 2, -1, state)
-        state = replaced_state
-        # 黑白方视角转换
-        cur_player = s["cur_player"]
-        if reverse:
-            cur_player = 1 if cur_player == 2 else 2
-        if cur_player == 2:
-            state = -state
+        # 转化为4通道, 分别表示黑子, 白子, 所有子, 当前玩家
+        black_state = torch.where(state == 1, 1.0, 0.0)
+        white_state = torch.where(state == 2, 1.0, 0.0)
+        chess_state = torch.where(state > 0, 1.0, 0.0)
+        turn = 1 if s["cur_player"] == 1 else 0
+        turn_state = turn * torch.ones_like(state, dtype=torch.float32)
+        state = torch.concat([black_state, white_state, chess_state, turn_state], 1)
+
         return state
 
     def get_action(self, s):
         if not self.training and random.random() < self.params["train.epsilon"]:
             a = random.choice(range(self.num_actions))
         else:
-            s = self.feature_fn(s, reverse=False)
+            x = self.feature_fn(s)
             with torch.no_grad():
-                q_value = self.q_net(s)
-            a = torch.argmax(q_value).cpu().item()
+                q_value = self.q_net(x)
+            forbidden_actions = torch.tensor(s["forbidden_actions"], dtype=torch.bool, device=self.device)
+            penalty = torch.where(forbidden_actions, 1e9, 0.0).unsqueeze(0)
+            # TODO: MCTS
+            a = torch.argmax(q_value - penalty).cpu().item()
         return int(a)
 
     def learn(self, s1, a, r, s2, done):
         self.training_steps += 1
-        # if s1["cur_player"] == 2:
-        #     r = -r
-        s1 = self.feature_fn(s1, reverse=False)
-        s2 = self.feature_fn(s2, reverse=False)
-        self.replay_buffer.add_data(s1, a, s2, r, done)
+        x1 = self.feature_fn(s1)
+        x2 = self.feature_fn(s2)
+        if s1["cur_player"] == 2:
+            r = -r
+        self.replay_buffer.add_data(x1, a, x2, r, done)
         if self.training_steps < self.replay_buffer.maxsize:
             # 数据未满时不训练
             return {}
@@ -224,25 +231,15 @@ def start_train(params):
         loss_dict = {}
         episode_steps = 0
         episode_reward = 0
-        episode_actions = []
+        episode_actions = []  # 调试用
         agent.set_train_mode()
         for t in range(params["train.max_episode_step"]):
-            # one step 定义为己方和对手依次采取动作
             episode_steps += 1
-
             a = agent.get_action(s1)
             episode_actions.append(a)
-            s1_mid, r_mid, done_mid = env.step(a)
-
-            a_oppo = oppo_agent.get_action(s1_mid)
-            if not done_mid:
-                episode_actions.append(a_oppo)
-            s2, r, done = env.step(a_oppo)
-
-            # 定义整体reward为两步reward相加
-            r_all = r_mid + r
-            episode_reward += r_all
-            loss_dict = agent.learn(s1, a, r_all, s2, done)
+            s2, r, done = env.step(a)
+            episode_reward += r
+            loss_dict = agent.learn(s1, a, r, s2, done)
             s1 = s2
             if done:
                 break
@@ -256,7 +253,7 @@ def start_train(params):
             oppo_agent = deepcopy(agent)
             oppo_agent.set_eval_mode()
 
-        if episode % 1000 == 0:
+        if episode % 100 == 0:
             end_time = time.time()
             print(f"Episode: {episode}, steps: {episode_steps}, reward: {episode_reward}, time: {end_time-start_time}s")
             print(f"actions: {episode_actions}")
