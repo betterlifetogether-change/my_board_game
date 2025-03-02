@@ -55,18 +55,22 @@ class FourInRowEnv(BaseEnv):
 
     def get_max_len(self, sub_state: np.ndarray):
         cur_len1 = max_len1 = cur_len2 = max_len2 = 0
+        last_s = 0
         for s in sub_state:
             if s == 1:
+                if s != last_s: cur_len1 = 0
                 cur_len1 += 1
                 if cur_len1 > max_len1:
                     max_len1 = cur_len1
             elif s == 2:
+                if s != last_s: cur_len2 = 0
                 cur_len2 += 1
                 if cur_len2 > max_len2:
                     max_len2 = cur_len2
-            elif s ==0:
+            else:
                 cur_len1 = 0
                 cur_len2 = 0
+            last_s = s
         return max_len1, max_len2
 
     def get_reward_one_row(self, sub_state: np.ndarray):
@@ -327,11 +331,9 @@ def human_vs_human():
         if game.game_over:
             print("游戏结束")
 
-def test_play2():
+def take_actions(actions):
     game = FourInRowEnv()
-    actions = [18, 12, 12, 6, 6, 0, 6, 0, 0, 1, 0]
-    for i in range(11):
-        action = actions[i]
+    for action in actions:
         game.step(int(action))
         game.display()
         if game.game_over:
@@ -358,8 +360,9 @@ def human_vs_ai():
 
 
 if __name__ == '__main__':
-    human_vs_ai()
+    # human_vs_ai()
     # game = FourInRowEnv()
     # game.state=np.array([[[5*y+x for z in range(5)] for y in range(5)] for x in range(5)])
     # game.get_reward(None,0,None)
     # game.get_max_len(np.array([1,0,1,1,1]))
+    take_actions([2, 7, 11, 7, 19, 7, 7, 7])
