@@ -6,6 +6,7 @@ class BaseEnv:
         self.state = 0
         self.done = False
         self.actions = set()
+        self.cur_player = 0
 
     def step(self, action):
         s1 = self.get_cur_state()
@@ -41,3 +42,6 @@ class VirtualBaseEnv(BaseEnv):
 
     def get_virtual_reward(self, s1, a, s2):
         return 0
+
+    def set_state(self, s):
+        self.state = deepcopy(s)
