@@ -186,22 +186,59 @@ class FourInRowEnv(BaseEnv):
 class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
     def __init__(self):
         super().__init__()
+        self.last_state = None
+        self.last_cur_player = None
+        self.last_cur_height = None
+        self.last_max_height = None
+        self.last_action = None
+        self.last_x = None
+        self.last_y = None
+        self.last_z = None
+
+    def get_next_state(self, action: int):
+        # 保存当前状态
+        self.last_state = np.copy(self.state)
+        self.last_cur_player = self.cur_player
+        self.last_cur_height = self.cur_height
+        self.last_max_height = self.max_height
+        # 调用父类方法执行动作并获取返回状态
+        next_state = super().get_next_state(action)  # 获取父类返回值
+        # 记录当前动作的位置信息
+        self.last_action = action
+        self.last_x = action % self.len_x
+        self.last_y = action // self.len_y
+        self.last_z = self.cur_height
+        return next_state  # 确保返回父类结果
 
     def roll_back(self, action: int):
         # 悔棋
-        if not self.out_of_height:
-            # 将action转化为横纵坐标
-            x = action % self.len_x
-            y = action // self.len_y
-            z = 0
-            while self.state[x, y, z] > 0 and z < self.len_z:
-                z += 1
-            if z > 0:
-                self.state[x, y, z-1] = 0
-        if self.cur_player == 1:
-            self.cur_player = 2
-        else:
-            self.cur_player = 1
+        # if not self.out_of_height:
+        #     # 将action转化为横纵坐标
+        #     x = action % self.len_x
+        #     y = action // self.len_y
+        #     z = 0
+        #     while self.state[x, y, z] > 0 and z < self.len_z:
+        #         z += 1
+        #     if z > 0:
+        #         self.state[x, y, z-1] = 0
+        # if self.cur_player == 1:
+        #     self.cur_player = 2
+        # else:
+        #     self.cur_player = 1
+        if self.last_state is not None:
+            self.state = np.copy(self.last_state)
+            self.cur_player = self.last_cur_player
+            self.cur_height = self.last_cur_height
+            self.max_height = self.last_max_height
+            # 重置保存的状态
+            self.last_state = None
+            self.last_cur_player = None
+            self.last_cur_height = None
+            self.last_max_height = None
+            self.last_action = None
+            self.last_x = None
+            self.last_y = None
+            self.last_z = None
 
     def get_virtual_reward(self, s1, a, s2):
         # 根据活二/活三/活四的数量给奖励
@@ -252,9 +289,12 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
                     if cur_len2 > max_len2:
                         max_len2 = cur_len2
             return max_len1, max_len2
-        cur_x = a % self.len_x
-        cur_y = a // self.len_y
-        cur_z = self.cur_height
+        # cur_x = a % self.len_x
+        # cur_y = a // self.len_y
+        # cur_z = self.cur_height
+        cur_x = self.last_x
+        cur_y = self.last_y
+        cur_z = self.last_z
         # s1 = np.asarray(s1)
         # s2 = np.asarray(s2)
         # assert s1.shape == s2.shape, "s1 and s2 must have the same shape"
