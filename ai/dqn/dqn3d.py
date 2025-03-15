@@ -42,15 +42,14 @@ class DQN3D(nn.Module):
             if self.use_bn:
                 self.bn_layers.append(bn)
 
-        # 共享value层
-        self.shared_value_layers = []
+        self.agent1_v_layers = []
         last_hidden_dim = out_channels[-1]
         for d in fig_dims:
             last_hidden_dim *= d
         for i, hidden_dim in enumerate(params["net.fc_hidden_dims"]):
-            self.shared_value_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
+            self.agent1_v_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
             last_hidden_dim = hidden_dim
-        self.shared_value_opt = nn.Linear(params["net.fc_hidden_dims"][-1], 1).to(device)
+        self.agent1_v_opt = nn.Linear(params["net.fc_hidden_dims"][-1], 1).to(device)
 
         # agent advantage头
         self.agent1_adv_layers = []
@@ -61,6 +60,15 @@ class DQN3D(nn.Module):
             self.agent1_adv_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
             last_hidden_dim = hidden_dim
         self.agent1_adv_opt = nn.Linear(params["net.fc_hidden_dims"][-1], self.num_actions).to(device)
+
+        # self.agent2_v_layers = []
+        # last_hidden_dim = out_channels[-1]
+        # for d in fig_dims:
+        #     last_hidden_dim *= d
+        # for i, hidden_dim in enumerate(params["net.fc_hidden_dims"]):
+        #     self.agent2_v_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
+        #     last_hidden_dim = hidden_dim
+        # self.agent2_v_opt = nn.Linear(params["net.fc_hidden_dims"][-1], 1).to(device)
 
         self.agent2_adv_layers = []
         last_hidden_dim = out_channels[-1]
@@ -84,10 +92,18 @@ class DQN3D(nn.Module):
 
         flatten_fig = x.view(x.size(0), -1)
 
-        v_x = flatten_fig
-        for i in range(len(self.shared_value_layers)):
-            v_x = F.relu(self.shared_value_layers[i](v_x))
-        value = self.shared_value_opt(v_x)
+        v1_x = flatten_fig
+        for i in range(len(self.agent1_v_layers)):
+            v1_x = F.relu(self.agent1_v_layers[i](v1_x))
+        v1 = self.agent1_v_opt(v1_x)
+
+        # v2_x = flatten_fig
+        # for i in range(len(self.agent2_v_layers)):
+        #     v2_x = F.relu(self.agent2_v_layers[i](v2_x))
+        # v2 = self.agent2_v_opt(v2_x)
+
+        # 零和博弈满足v1+v2=0
+        v2 = -v1
 
         adv1_x = flatten_fig
         for i in range(len(self.agent1_adv_layers)):
@@ -98,10 +114,12 @@ class DQN3D(nn.Module):
         adv2_x = flatten_fig
         for i in range(len(self.agent2_adv_layers)):
             adv2_x = F.relu(self.agent2_adv_layers[i](adv2_x))
-        adv2_x = self.agent1_adv_opt(adv2_x)
+        adv2_x = self.agent2_adv_opt(adv2_x)
         adv2 = adv2_x - torch.mean(adv2_x, 1, keepdim=True)
 
-        q_value = value + cur_player * adv1 + (1 - cur_player) * adv2
+        q1 = v1 + adv1
+        q2 = v2 + adv2
+        q_value = cur_player * q1 + (1 - cur_player) * q2
 
         return q_value
 
@@ -200,9 +218,8 @@ class DQNAgent(BaseAgent):
         return state
 
     def get_action(self, s):
-        if self.training and self.training_steps < self.replay_buffer.maxsize:
-            return random.choice(range(self.num_actions))
-        if self.training and random.random() < self.params["train.epsilon"]:
+        if self.training and (random.random() < self.params["train.epsilon"]
+                              or self.training_steps < self.replay_buffer.maxsize):
             a = random.choice(range(self.num_actions))
         else:
             # 获取当前玩家下所有位置后的局势
@@ -212,8 +229,9 @@ class DQNAgent(BaseAgent):
                 batch_q2 = self.q_net(batch_x2)
             max_q2 = torch.max(batch_q2, 1)[0]
 
-            # max_q2是从对手角度考虑的价值,因此取argmin
-            a_idx = torch.argmin((1-dones) * max_q2 + dones * rs).cpu().item()
+            # max_q2是从对手角度考虑的价值, 因此是r-maxQ
+            q1 = rs - (1-dones) * max_q2
+            a_idx = torch.argmax(q1).cpu().item()
             a = available_actions[a_idx]
 
         return int(a)
@@ -233,8 +251,8 @@ class DQNAgent(BaseAgent):
             self.v_env.roll_back(action)
         b_x2s = torch.concat(x2s, 0)
         b_rs = torch.tensor(rs, dtype=torch.float32, device=self.device)
-        # 此时为ai推理对手,奖励取反
-        if s["cur_player"] == 1:
+        # 原rs是环境奖励, b_rs是从cur_player角度考虑的奖励
+        if s["cur_player"] == 2:
             b_rs = -b_rs
         b_dones = torch.where(torch.tensor(dones, device=self.device), 1.0, 0.0)
         return b_x2s, b_rs, b_dones, available_actions
