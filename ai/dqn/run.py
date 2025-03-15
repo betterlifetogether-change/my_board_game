@@ -20,7 +20,7 @@ def start_train(params):
     env = env_class()
     print(f"## Build env({env}) Success.")
 
-    agent = DQNAgent(env.state_shape, env.num_actions, params)
+    agent = DQNAgent(env.state_shape, env.num_actions, params, args)
     if args.checkpoint and args.warmup:
         agent.load_checkpoint(args.checkpoint)
 
@@ -28,6 +28,7 @@ def start_train(params):
     oppo_agent.set_eval_mode()  # 对手模型不训练
     start_time = time.time()
     for episode in range(params["train.num_episode"]):
+        agent1_player = 1 if episode % 2 == 0 else 2
         s1 = env.restart()
         loss_dict = {}
         episode_steps = 0
@@ -36,11 +37,15 @@ def start_train(params):
         agent.set_train_mode()
         for t in range(params["train.max_episode_step"]):
             episode_steps += 1
-            a = agent.get_action(s1)
+            if s1["cur_player"] == agent1_player:
+                a = agent.get_action(s1)
+            else:
+                a = oppo_agent.get_action(s1)
             episode_actions.append(a)
             s2, r, done = env.step(a)
             episode_reward += r
-            loss_dict = agent.learn(s1, a, r, s2, done)
+            if s1["cur_player"] == agent1_player:
+                loss_dict = agent.learn(s1, a, r, s2, done)
             s1 = s2
             if done:
                 break
@@ -113,15 +118,67 @@ def start_test(agent1: BaseAgent, agent2: BaseAgent, env: BaseEnv, params):
     return {"steps": avg_episode_steps, "win_rate1": win_rate1, "win_rate2": win_rate2, "time": time.time()-start}
 
 
+def play_with_ai(args):
+    config_path = os.path.join(os.path.dirname(__file__), args.conf)
+    params = ParseConf(config_path)
+
+    import importlib
+    # Get module and model class
+    module_name = params["env.module_name"]
+    class_name = params["env.class_name"]
+    module = importlib.import_module(module_name)
+    env_class = getattr(module, class_name)
+    print(f"\n## from {module_name} import {class_name} Success.")
+    env = env_class()
+    print(f"## Build env({env}) Success.")
+
+    agent = DQNAgent(env.state_shape, env.num_actions, params, args)
+    agent.load_checkpoint(args.checkpoint)
+    agent.set_eval_mode()
+
+    ai_actions = [11, 12, 20]
+    human_actions = [1, 2, 3]
+
+    agent1_player = 1
+    s1 = env.restart()
+    episode_steps = 0
+    episode_reward = 0
+    episode_actions = []
+    for t in range(params["test.max_episode_step"]):
+        episode_steps += 1
+
+        if s1["cur_player"] == agent1_player:
+            if t//2 < len(ai_actions):
+                a = ai_actions[t//2]
+            else:
+                a = agent.get_action(s1)
+        else:
+            if t//2 < len(human_actions):
+                a = human_actions[t//2]
+            else:
+                a = agent.get_action(s1)
+
+        episode_actions.append(a)
+        s2, r, done = env.step(a)
+        episode_reward += r
+        s1 = s2
+        if done:
+            break
+
+
+
 if __name__ == '__main__':
     import os
     from utils.parse_conf import ParseConf
 
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--func', default='start_train', type=str)
     parser.add_argument('--conf', default='conf.yaml', type=str)
     parser.add_argument('--checkpoint', default='', type=str)
     parser.add_argument('--warmup', action='store_true')
     args = parser.parse_args()
 
-    start_train(args)
+    func = globals()[args.func]
+    func(args)
+

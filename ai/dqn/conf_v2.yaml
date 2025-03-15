@@ -26,7 +26,7 @@ train:
 
 # 模型网络参数
 net:
-  out_channels: [32, 32, 2]
+  out_channels: [64, 64, 2]
   kernel_sizes: [3, 3, 3]
   strides: [1, 1, 1]
   paddings: [1, 1, 1]

@@ -187,6 +187,10 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
     def __init__(self):
         super().__init__()
 
+    def set_state(self, s: dict):
+        self.state = s["state"]
+        self.cur_player = s["cur_player"]
+
     def roll_back(self, action: int):
         # 悔棋
         if not self.out_of_height:
@@ -194,7 +198,7 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
             x = action % self.len_x
             y = action // self.len_y
             z = 0
-            while self.state[x, y, z] > 0 and z < self.len_z:
+            while z < self.len_z and self.state[x, y, z]:
                 z += 1
             if z > 0:
                 self.state[x, y, z-1] = 0
@@ -202,6 +206,7 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
             self.cur_player = 2
         else:
             self.cur_player = 1
+        self.game_over = False
 
     def get_virtual_reward(self, s1, a, s2):
         # 根据活二/活三/活四的数量给奖励

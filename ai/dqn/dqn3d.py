@@ -143,7 +143,7 @@ class ReplayBuffer(object):
 
 
 class DQNAgent(BaseAgent):
-    def __init__(self, env_state_shape, num_actions, params):
+    def __init__(self, env_state_shape, num_actions, params, args):
         super().__init__()
         self.training = False
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -165,6 +165,10 @@ class DQNAgent(BaseAgent):
         self.num_actions = num_actions
         self.training_steps = 0
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=params["train.lr"])
+        self.is_warmup = args.warmup
+
+        from game_env.four_in_row import VirtualFourInRowEnv
+        self.v_env = VirtualFourInRowEnv()
 
     def set_train_mode(self):
         self.training = True
@@ -196,40 +200,44 @@ class DQNAgent(BaseAgent):
         return state
 
     def get_action(self, s):
-        if self.training_steps < self.replay_buffer.maxsize:
+        if self.training and self.training_steps < self.replay_buffer.maxsize:
             return random.choice(range(self.num_actions))
-        if not self.training and random.random() < self.params["train.epsilon"]:
+        if self.training and random.random() < self.params["train.epsilon"]:
             a = random.choice(range(self.num_actions))
         else:
             # 获取当前玩家下所有位置后的局势
-            batch_x2, available_actions = self.get_next_state_batch(s)
+            batch_x2, rs, dones, available_actions = self.get_s2_r_done_batch(s)
+
             with torch.no_grad():
                 batch_q2 = self.q_net(batch_x2)
             max_q2 = torch.max(batch_q2, 1)[0]
 
-            # max_q2是从对手角度考虑
-            a_idx = torch.argmin(max_q2).cpu().item()
+            # max_q2是从对手角度考虑的价值,因此取argmin
+            a_idx = torch.argmin((1-dones) * max_q2 + dones * rs).cpu().item()
             a = available_actions[a_idx]
 
         return int(a)
 
-    def get_next_state_batch(self, s):
+    def get_s2_r_done_batch(self, s):
         available_actions = [i for i in range(self.num_actions) if not s["forbidden_actions"][i]]
         x2s = []
-        len_x, len_y, len_z = self.env_state_shape
+        rs = []
+        dones = []
         for action in available_actions:
-            state2 = np.copy(s["state"])
-            x = action % len_x
-            y = action // len_y
-            z = 0
-            while z < len_z and state2[x, y, z] > 0:
-                z += 1
-            if z < len_z:
-                # 在限定高度内才能正常落子
-                state2[x, y, z] = s["cur_player"]
-            x2 = self.feature_fn({"state": state2, "cur_player": 3 - s["cur_player"]})
+            self.v_env.set_state(s)
+            s2, r, done = self.v_env.step(action)
+            x2 = self.feature_fn(s2)
             x2s.append(x2)
-        return torch.concat(x2s, 0), available_actions
+            rs.append(r)
+            dones.append(done)
+            self.v_env.roll_back(action)
+        b_x2s = torch.concat(x2s, 0)
+        b_rs = torch.tensor(rs, dtype=torch.float32, device=self.device)
+        # 此时为ai推理对手,奖励取反
+        if s["cur_player"] == 1:
+            b_rs = -b_rs
+        b_dones = torch.where(torch.tensor(dones, device=self.device), 1.0, 0.0)
+        return b_x2s, b_rs, b_dones, available_actions
 
     def learn(self, s1, a, r, s2, done):
         self.training_steps += 1
@@ -239,7 +247,7 @@ class DQNAgent(BaseAgent):
         if s1["cur_player"] == 2:
             r = -r
         self.replay_buffer.add_data(x1, a, x2, r, done)
-        if self.training_steps < self.replay_buffer.maxsize:
+        if self.training_steps < self.replay_buffer.maxsize and not self.is_warmup:
             # 数据未满时不训练
             return {}
         b_s1, b_a, b_s2, b_rs, b_done = self.replay_buffer.sample(self.params["train.batch_size"])
@@ -252,7 +260,8 @@ class DQNAgent(BaseAgent):
         loss = torch.Tensor([0.0]).to(self.device)
         b_rs = b_rs.squeeze(1)
         b_done = b_done.squeeze(1)
-        loss += 0.5 * nn.MSELoss()(Q, b_rs + gamma * Q_tar * (1 - b_done))
+        # 由于是minmax算法, 因此是r-maxQ
+        loss += 0.5 * nn.MSELoss()(Q, b_rs - gamma * Q_tar * (1 - b_done))
 
         self.optimizer.zero_grad()
         loss.backward()
