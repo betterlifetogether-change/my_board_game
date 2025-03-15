@@ -42,21 +42,38 @@ class DQN3D(nn.Module):
             if self.use_bn:
                 self.bn_layers.append(bn)
 
-        # 全连接层
-        self.fc_layers = []
-        self.dropout_layers = []
+        # 共享value层
+        self.shared_value_layers = []
         last_hidden_dim = out_channels[-1]
         for d in fig_dims:
             last_hidden_dim *= d
         for i, hidden_dim in enumerate(params["net.fc_hidden_dims"]):
-            self.fc_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
-            self.dropout_layers.append(nn.Dropout(params["net.dropout_p"]).to(device))
+            self.shared_value_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
             last_hidden_dim = hidden_dim
+        self.shared_value_opt = nn.Linear(params["net.fc_hidden_dims"][-1], 1).to(device)
 
-        # 输出层
-        self.fc_opt = nn.Linear(params["net.fc_hidden_dims"][-1], self.num_actions).to(device)
+        # agent advantage头
+        self.agent1_adv_layers = []
+        last_hidden_dim = out_channels[-1]
+        for d in fig_dims:
+            last_hidden_dim *= d
+        for i, hidden_dim in enumerate(params["net.fc_hidden_dims"]):
+            self.agent1_adv_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
+            last_hidden_dim = hidden_dim
+        self.agent1_adv_opt = nn.Linear(params["net.fc_hidden_dims"][-1], self.num_actions).to(device)
+
+        self.agent2_adv_layers = []
+        last_hidden_dim = out_channels[-1]
+        for d in fig_dims:
+            last_hidden_dim *= d
+        for i, hidden_dim in enumerate(params["net.fc_hidden_dims"]):
+            self.agent2_adv_layers.append(nn.Linear(last_hidden_dim, hidden_dim).to(device))
+            last_hidden_dim = hidden_dim
+        self.agent2_adv_opt = nn.Linear(params["net.fc_hidden_dims"][-1], self.num_actions).to(device)
 
     def forward(self, x):
+        # 最后一个通道表示当前玩家, 1为agent1, 0为agent2
+        cur_player = x[:, -1:, 0, 0, 0]
         # 3D 卷积层
         # TODO: 可以考虑跳跃连接
         for i in range(len(self.conv_layers)):
@@ -65,17 +82,28 @@ class DQN3D(nn.Module):
                 x = self.bn_layers[i](x)
             x = F.relu(x)
 
-        # 展平
-        x = x.view(x.size(0), -1)
+        flatten_fig = x.view(x.size(0), -1)
 
-        # 全连接层
-        for i in range(len(self.fc_layers)):
-            x = F.relu(self.fc_layers[i](x))
-            x = self.dropout_layers[i](x)
+        v_x = flatten_fig
+        for i in range(len(self.shared_value_layers)):
+            v_x = F.relu(self.shared_value_layers[i](v_x))
+        value = self.shared_value_opt(v_x)
 
-        # 输出层
-        x = self.fc_opt(x)  # 输出形状: (batch_size, length * height * width)
-        return x
+        adv1_x = flatten_fig
+        for i in range(len(self.agent1_adv_layers)):
+            adv1_x = F.relu(self.agent1_adv_layers[i](adv1_x))
+        adv1_x = self.agent1_adv_opt(adv1_x)
+        adv1 = adv1_x - torch.mean(adv1_x, 1, keepdim=True)
+
+        adv2_x = flatten_fig
+        for i in range(len(self.agent2_adv_layers)):
+            adv2_x = F.relu(self.agent2_adv_layers[i](adv2_x))
+        adv2_x = self.agent1_adv_opt(adv2_x)
+        adv2 = adv2_x - torch.mean(adv2_x, 1, keepdim=True)
+
+        q_value = value + cur_player * adv1 + (1 - cur_player) * adv2
+
+        return q_value
 
 
 class ReplayBuffer(object):
@@ -123,6 +151,7 @@ class DQNAgent(BaseAgent):
 
         # 特征工程: 将原始环境图像转为4通道
         state_shape = [4, ] + env_state_shape
+        self.env_state_shape = env_state_shape
         self.q_net = DQN3D(state_shape, num_actions, params, device)
         self.tar_q_net = deepcopy(self.q_net)
         assert params.get("train.buffer_size") is not None
@@ -167,22 +196,46 @@ class DQNAgent(BaseAgent):
         return state
 
     def get_action(self, s):
+        if self.training_steps < self.replay_buffer.maxsize:
+            return random.choice(range(self.num_actions))
         if not self.training and random.random() < self.params["train.epsilon"]:
             a = random.choice(range(self.num_actions))
         else:
-            x = self.feature_fn(s)
+            # 获取当前玩家下所有位置后的局势
+            batch_x2, available_actions = self.get_next_state_batch(s)
             with torch.no_grad():
-                q_value = self.q_net(x)
-            forbidden_actions = torch.tensor(s["forbidden_actions"], dtype=torch.bool, device=self.device)
-            penalty = torch.where(forbidden_actions, 1e9, 0.0).unsqueeze(0)
-            # TODO: MCTS
-            a = torch.argmax(q_value - penalty).cpu().item()
+                batch_q2 = self.q_net(batch_x2)
+            max_q2 = torch.max(batch_q2, 1)[0]
+
+            # max_q2是从对手角度考虑
+            a_idx = torch.argmin(max_q2).cpu().item()
+            a = available_actions[a_idx]
+
         return int(a)
+
+    def get_next_state_batch(self, s):
+        available_actions = [i for i in range(self.num_actions) if not s["forbidden_actions"][i]]
+        x2s = []
+        len_x, len_y, len_z = self.env_state_shape
+        for action in available_actions:
+            state2 = np.copy(s["state"])
+            x = action % len_x
+            y = action // len_y
+            z = 0
+            while z < len_z and state2[x, y, z] > 0:
+                z += 1
+            if z < len_z:
+                # 在限定高度内才能正常落子
+                state2[x, y, z] = s["cur_player"]
+            x2 = self.feature_fn({"state": state2, "cur_player": 3 - s["cur_player"]})
+            x2s.append(x2)
+        return torch.concat(x2s, 0), available_actions
 
     def learn(self, s1, a, r, s2, done):
         self.training_steps += 1
         x1 = self.feature_fn(s1)
         x2 = self.feature_fn(s2)
+        # 环境给的r为裁判视角(r<0白优),学习时从玩家视角(r>0为当前玩家优)
         if s1["cur_player"] == 2:
             r = -r
         self.replay_buffer.add_data(x1, a, x2, r, done)
@@ -211,3 +264,10 @@ class DQNAgent(BaseAgent):
     def update_target_network(self):
         self.tar_q_net.load_state_dict(self.q_net.state_dict())
 
+    def load_checkpoint(self, ckpt):
+        state_dict = torch.load(ckpt)
+        self.q_net.load_state_dict(state_dict)
+        self.tar_q_net.load_state_dict(state_dict)
+
+    def save_checkpoint(self, ckpt):
+        torch.save(self.q_net.state_dict(), ckpt)
