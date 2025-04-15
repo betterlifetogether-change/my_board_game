@@ -6,7 +6,7 @@ class FourInRowEnv(BaseEnv):
     def __init__(self):
         super().__init__()
         self.len_x, self.len_y, self.len_z = 5, 5, 5
-        self.state_shape = [1, self.len_x, self.len_y, self.len_z]
+        self.state_shape = [self.len_x, self.len_y, self.len_z]
         self.actions = set([i for i in range(self.len_x * self.len_y)])  # 所有可能动作的集合
         self.num_actions = self.len_x * self.len_y
         # 使用5*5*5矩阵表示棋盘状态, 0表示空, 1表示黑子, 2表示白子
@@ -19,7 +19,10 @@ class FourInRowEnv(BaseEnv):
         self.game_over = False  # 是否游戏结束
 
     def get_cur_state(self):
-        return {"state": np.copy(self.state), "cur_player": self.cur_player}
+        chess = np.where(np.greater(self.state, 0), 1, 0)
+        forbidden_state = np.greater_equal(np.sum(chess, 2), self.len_z)
+        forbidden_actions = np.reshape(np.transpose(forbidden_state), [self.len_x * self.len_y])
+        return {"state": np.copy(self.state), "cur_player": self.cur_player, "forbidden_actions": forbidden_actions}
 
     def get_next_state(self, action: int):
         # 输入下棋的位置action, 输出下棋后的棋盘状态
@@ -48,22 +51,26 @@ class FourInRowEnv(BaseEnv):
             self.cur_player = 2
         else:
             self.cur_player = 1
-        return {"state": np.copy(self.state), "cur_player": self.cur_player}
+        return self.get_cur_state()
 
     def get_max_len(self, sub_state: np.ndarray):
         cur_len1 = max_len1 = cur_len2 = max_len2 = 0
+        last_s = 0
         for s in sub_state:
             if s == 1:
+                if s != last_s: cur_len1 = 0
                 cur_len1 += 1
                 if cur_len1 > max_len1:
                     max_len1 = cur_len1
             elif s == 2:
+                if s != last_s: cur_len2 = 0
                 cur_len2 += 1
                 if cur_len2 > max_len2:
                     max_len2 = cur_len2
-            elif s ==0:
+            else:
                 cur_len1 = 0
                 cur_len2 = 0
+            last_s = s
         return max_len1, max_len2
 
     def get_reward_one_row(self, sub_state: np.ndarray):
@@ -87,63 +94,63 @@ class FourInRowEnv(BaseEnv):
         cur_z = self.cur_height
         # 只需要针对当前坐标延伸的13个方向判定即可
         # x方向
-        r = self.get_reward_one_row(self.state[:, cur_y, cur_z])
+        r = self.get_reward_one_row(s2[:, cur_y, cur_z])
         if self.game_over: return r
         # y方向
-        r = self.get_reward_one_row(self.state[cur_x, :, cur_z])
+        r = self.get_reward_one_row(s2[cur_x, :, cur_z])
         if self.game_over: return r
         # z方向
-        r = self.get_reward_one_row(self.state[cur_x, cur_y, :])
+        r = self.get_reward_one_row(s2[cur_x, cur_y, :])
         if self.game_over: return r
         # (x,y)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x+t < self.len_x and 0 <= cur_y+t < self.len_y]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], cur_z])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y+t for t in ts], cur_z])
         if self.game_over: return r
         # (x,-y)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x+t < self.len_x and 0 <= cur_y-t < self.len_y]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], cur_z])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y-t for t in ts], cur_z])
         if self.game_over: return r
         # (x,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], cur_y, [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], cur_y, [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], cur_y, [cur_z-t for t in ts]])
         if self.game_over: return r
         # (y,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[cur_x, [cur_y+t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (y,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[cur_x, [cur_y+t for t in ts], [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[cur_x, [cur_y+t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         # (x,y,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,y,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y+t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         # (x,-y,z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z + t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z+t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z+t for t in ts]])
         if self.game_over: return r
         # (x,-y,-z)方向
         ts = [t for t in range(-3, 4)
               if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z - t < self.len_z]
-        r = self.get_reward_one_row(self.state[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z-t for t in ts]])
+        r = self.get_reward_one_row(s2[[cur_x+t for t in ts], [cur_y-t for t in ts], [cur_z-t for t in ts]])
         if self.game_over: return r
         return 0
 
@@ -154,7 +161,7 @@ class FourInRowEnv(BaseEnv):
         self.state = np.copy(self.init_state)
         self.cur_player = 1
         self.game_over = False
-        return {"state": np.copy(self.state), "cur_player": self.cur_player}
+        return self.get_cur_state()
 
     def display(self):
         # 打印当前棋盘状态
@@ -180,8 +187,8 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
     def __init__(self):
         super().__init__()
 
-    def set_state(self, s):
-        self.state = np.copy(s["state"])
+    def set_state(self, s: dict):
+        self.state = s["state"]
         self.cur_player = s["cur_player"]
 
     def roll_back(self, action: int):
@@ -191,7 +198,7 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
             x = action % self.len_x
             y = action // self.len_y
             z = 0
-            while self.state[x, y, z] > 0 and z < self.len_z:
+            while z < self.len_z and self.state[x, y, z]:
                 z += 1
             if z > 0:
                 self.state[x, y, z-1] = 0
@@ -199,10 +206,9 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
             self.cur_player = 2
         else:
             self.cur_player = 1
+        self.game_over = False
 
     def get_virtual_reward(self, s1, a, s2):
-        global last_cur_y, last_cur_z, last_cur_x
-        s2 = s2["state"]
         # 根据活二/活三/活四的数量给奖励
         def calculate_score(max_len1, max_len2):
             score = 0
@@ -254,74 +260,70 @@ class VirtualFourInRowEnv(FourInRowEnv, VirtualBaseEnv):
         cur_x = a % self.len_x
         cur_y = a // self.len_y
         cur_z = self.cur_height
-        if self.cur_player == 1:
-            last_cur_x = cur_x
-            last_cur_y = cur_y
-            last_cur_z = cur_z
         total_score = 0
         # x方向
-        max_len1, max_len2 = get_max_len_1(s2[:, last_cur_y, last_cur_z])
+        max_len1, max_len2 = get_max_len_1(self.state[:, cur_y, cur_z])
         total_score += calculate_score(max_len1, max_len2)
         # y方向
-        max_len1, max_len2 = get_max_len_1(s2[last_cur_x, :, last_cur_z])
+        max_len1, max_len2 = get_max_len_1(self.state[cur_x, :, cur_z])
         total_score += calculate_score(max_len1, max_len2)
         # z方向
-        max_len1, max_len2 = get_max_len_1(s2[last_cur_x, last_cur_y, :])
+        max_len1, max_len2 = get_max_len_1(self.state[cur_x, cur_y, :])
         total_score += calculate_score(max_len1, max_len2)
         # (x,y)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_y + t < self.len_y]
-        max_len1, max_len2 = get_max_len_1(s2[[last_cur_x + t for t in ts], [last_cur_y + t for t in ts], last_cur_z])
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y]
+        max_len1, max_len2 = get_max_len_1(self.state[[cur_x + t for t in ts], [cur_y + t for t in ts], cur_z])
         total_score += calculate_score(max_len1, max_len2)
         # TODO: 以下代码未完成
         # (x,-y)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_y - t < self.len_y]
-        max_len1, max_len2 = get_max_len_1(s2[[last_cur_x + t for t in ts], [last_cur_y - t for t in ts], last_cur_z])
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y]
+        max_len1, max_len2 = get_max_len_1(self.state[[cur_x + t for t in ts], [cur_y - t for t in ts], cur_z])
         total_score += calculate_score(max_len1, max_len2)
         # (x,z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_z + t < self.len_z]
-        max_len1, max_len2 = get_max_len_1(s2[[last_cur_x + t for t in ts], last_cur_y, [last_cur_z + t for t in ts]])
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_z + t < self.len_z]
+        max_len1, max_len2 = get_max_len_1(self.state[[cur_x + t for t in ts], cur_y, [cur_z + t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         # (x,-z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_z - t < self.len_z]
-        max_len1, max_len2 = get_max_len_1(s2[[last_cur_x + t for t in ts], last_cur_y, [last_cur_z - t for t in ts]])
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_z - t < self.len_z]
+        max_len1, max_len2 = get_max_len_1(self.state[[cur_x + t for t in ts], cur_y, [cur_z - t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         # (y,z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_y + t < self.len_y and 0 <= last_cur_z + t < self.len_z]
-        max_len1, max_len2 = get_max_len_1(s2[last_cur_x, [last_cur_y + t for t in ts], [last_cur_z + t for t in ts]])
+              if 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
+        max_len1, max_len2 = get_max_len_1(self.state[cur_x, [cur_y + t for t in ts], [cur_z + t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         # (y,-z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_y + t < self.len_y and 0 <= last_cur_z - t < self.len_z]
-        max_len1, max_len2 = get_max_len_1(s2[last_cur_x, [last_cur_y + t for t in ts], [last_cur_z - t for t in ts]])
+              if 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
+        max_len1, max_len2 = get_max_len_1(self.state[cur_x, [cur_y + t for t in ts], [cur_z - t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         # (x,y,z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_y + t < self.len_y and 0 <= last_cur_z + t < self.len_z]
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z + t < self.len_z]
         max_len1, max_len2 = get_max_len_1(
-            s2[[last_cur_x + t for t in ts], [last_cur_y + t for t in ts], [last_cur_z + t for t in ts]])
+            self.state[[cur_x + t for t in ts], [cur_y + t for t in ts], [cur_z + t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         # (x,y,-z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_y + t < self.len_y and 0 <= last_cur_z - t < self.len_z]
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y + t < self.len_y and 0 <= cur_z - t < self.len_z]
         max_len1, max_len2 = get_max_len_1(
-            s2[[last_cur_x + t for t in ts], [last_cur_y + t for t in ts], [last_cur_z - t for t in ts]])
+            self.state[[cur_x + t for t in ts], [cur_y + t for t in ts], [cur_z - t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         # (x,-y,z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_y - t < self.len_y and 0 <= last_cur_z + t < self.len_z]
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z + t < self.len_z]
         max_len1, max_len2 = get_max_len_1(
-            s2[[last_cur_x + t for t in ts], [last_cur_y - t for t in ts], [last_cur_z + t for t in ts]])
+            self.state[[cur_x + t for t in ts], [cur_y - t for t in ts], [cur_z + t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         # (x,-y,-z)方向
         ts = [t for t in range(-3, 4)
-              if 0 <= last_cur_x + t < self.len_x and 0 <= last_cur_y - t < self.len_y and 0 <= last_cur_z - t < self.len_z]
+              if 0 <= cur_x + t < self.len_x and 0 <= cur_y - t < self.len_y and 0 <= cur_z - t < self.len_z]
         max_len1, max_len2 = get_max_len_1(
-            s2[[last_cur_x + t for t in ts], [last_cur_y - t for t in ts], [last_cur_z - t for t in ts]])
+            self.state[[cur_x + t for t in ts], [cur_y - t for t in ts], [cur_z - t for t in ts]])
         total_score += calculate_score(max_len1, max_len2)
         return total_score
 
@@ -334,11 +336,9 @@ def human_vs_human():
         if game.game_over:
             print("游戏结束")
 
-def test_play2():
+def take_actions(actions):
     game = FourInRowEnv()
-    actions = [18, 12, 12, 6, 6, 0, 6, 0, 0, 1, 0]
-    for i in range(11):
-        action = actions[i]
+    for action in actions:
         game.step(int(action))
         game.display()
         if game.game_over:
@@ -365,8 +365,9 @@ def human_vs_ai():
 
 
 if __name__ == '__main__':
-    human_vs_ai()
+    # human_vs_ai()
     # game = FourInRowEnv()
     # game.state=np.array([[[5*y+x for z in range(5)] for y in range(5)] for x in range(5)])
     # game.get_reward(None,0,None)
     # game.get_max_len(np.array([1,0,1,1,1]))
+    take_actions([2, 7, 11, 7, 19, 7, 7, 7])
